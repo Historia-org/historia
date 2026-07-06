@@ -9,7 +9,7 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      # Exécutés une seule fois, à la création du volume, dans l'ordre alphabétique
+      # Run once, when the volume is created, in alphabetical order
       - ./infra/db/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-historia} -d ${POSTGRES_DB:-historia}"]

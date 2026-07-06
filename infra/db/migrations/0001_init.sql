@@ -1,12 +1,12 @@
--- Historia — schéma v1 (Phase 0)
--- Modèle bitemporel : temps HISTORIQUE (valid_*, dates EDTF) ≠ temps d'ÉDITION (changesets, versions).
--- Les feature_state sont IMMUTABLES : une correction crée une nouvelle ligne qui "remplace" l'ancienne.
--- Tout l'historique reste lisible par tous (modèle Wikipedia).
+-- Historia — schema v1 (Phase 0)
+-- Bitemporal model: HISTORICAL time (valid_*, EDTF dates) != EDIT time (changesets, versions).
+-- feature_state rows are IMMUTABLE: a correction creates a new row that "replaces" the old one.
+-- The full history stays readable by everyone (Wikipedia model).
 
 CREATE EXTENSION IF NOT EXISTS postgis;
 
 -- ---------------------------------------------------------------------------
--- Utilisateurs & changesets (temps d'édition)
+-- Users & changesets (edit time)
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE app_user (
@@ -22,7 +22,7 @@ CREATE TABLE changeset (
   id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   user_id       bigint REFERENCES app_user(id),
   comment       text,
-  -- Forme canonique HistoriaText du changeset (source de vérité lisible humain/LLM)
+  -- Canonical HistoriaText form of the changeset (human/LLM-readable source of truth)
   historia_text text,
   status        text NOT NULL DEFAULT 'draft'
                 CHECK (status IN ('draft', 'submitted', 'published', 'rejected', 'reverted')),
@@ -31,7 +31,7 @@ CREATE TABLE changeset (
 );
 
 -- ---------------------------------------------------------------------------
--- Événements (pages wiki : "Commune de Paris", "Guerre de 100 ans"...)
+-- Events (wiki pages: "Paris Commune", "Hundred Years' War"...)
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE event (
@@ -39,24 +39,24 @@ CREATE TABLE event (
   slug              text NOT NULL UNIQUE,
   title             text NOT NULL,
   description_md    text,
-  -- Bornes de la frise : EDTF (vérité) + bornes date dérivées (requêtage)
+  -- Timeline bounds: EDTF (source of truth) + derived date bounds (querying)
   period_start_edtf text,
   period_end_edtf   text,
   period_start      date,
   period_end        date,
-  -- Hiérarchie type Wikipedia : événement > phases/sous-événements
+  -- Wikipedia-style hierarchy: event > phases/sub-events
   parent_id         bigint REFERENCES event(id),
   created_at        timestamptz NOT NULL DEFAULT now()
 );
 
 -- ---------------------------------------------------------------------------
--- Features (les "choses" du monde réel) et leurs états datés
+-- Features (real-world "things") and their dated states
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE feature (
   id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   slug       text NOT NULL UNIQUE,
-  -- barricade, front, frontiere, batiment, bataille, unite_militaire...
+  -- barricade, front, border, building, battle, military_unit...
   type       text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
@@ -66,7 +66,7 @@ CREATE TABLE feature_state (
   feature_id     bigint NOT NULL REFERENCES feature(id),
   geom           geometry(Geometry, 4326) NOT NULL,
 
-  -- Temps historique : EDTF = vérité (incertitude incluse), bornes date = index
+  -- Historical time: EDTF = source of truth (uncertainty included), date bounds = index
   valid_from_edtf text NOT NULL,
   valid_to_edtf   text,
   valid_from_min  date NOT NULL,
@@ -76,11 +76,11 @@ CREATE TABLE feature_state (
 
   properties     jsonb NOT NULL DEFAULT '{}'::jsonb,
 
-  -- Temps d'édition : lignes immutables, remplacement explicite
+  -- Edit time: immutable rows, explicit replacement
   changeset_id   bigint NOT NULL REFERENCES changeset(id),
   replaces_id    bigint REFERENCES feature_state(id),
-  is_current     boolean NOT NULL DEFAULT true,   -- maintenu par l'API
-  is_deleted     boolean NOT NULL DEFAULT false,  -- suppression logique (jamais physique)
+  is_current     boolean NOT NULL DEFAULT true,   -- maintained by the API
+  is_deleted     boolean NOT NULL DEFAULT false,  -- logical deletion (never physical)
   created_at     timestamptz NOT NULL DEFAULT now(),
 
   CONSTRAINT valid_from_bounds CHECK (valid_from_min <= valid_from_max),
@@ -90,7 +90,7 @@ CREATE TABLE feature_state (
 
 CREATE INDEX feature_state_geom_idx     ON feature_state USING gist (geom);
 CREATE INDEX feature_state_feature_idx  ON feature_state (feature_id) WHERE is_current;
--- Requête tuile type : WHERE valid_from_max <= :d AND (valid_to_min IS NULL OR valid_to_min >= :d)
+-- Typical tile query: WHERE valid_from_max <= :d AND (valid_to_min IS NULL OR valid_to_min >= :d)
 CREATE INDEX feature_state_time_idx     ON feature_state (valid_from_max, valid_to_min) WHERE is_current;
 
 CREATE TABLE event_feature (
@@ -101,7 +101,7 @@ CREATE TABLE event_feature (
 );
 
 -- ---------------------------------------------------------------------------
--- Sources (le sourçage porte sur l'ÉTAT daté, pas sur la feature)
+-- Sources (sourcing applies to the dated STATE, not the feature)
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE source (
@@ -126,17 +126,17 @@ CREATE TABLE feature_state_source (
 );
 
 -- ---------------------------------------------------------------------------
--- Schéma des tuiles (Phase 1 : fonctions MVT paramétrées par date, servies par Martin)
+-- Tile schema (Phase 1: MVT functions parameterized by date, served by Martin)
 -- ---------------------------------------------------------------------------
 
 CREATE SCHEMA IF NOT EXISTS tiles;
 
 -- ---------------------------------------------------------------------------
--- Seed : événement pilote
+-- Seed: pilot event
 -- ---------------------------------------------------------------------------
 
 INSERT INTO event (slug, title, description_md,
                    period_start_edtf, period_end_edtf, period_start, period_end)
-VALUES ('commune-de-paris-1871', 'La Commune de Paris',
-        'Insurrection parisienne du 18 mars au 28 mai 1871.',
+VALUES ('commune-de-paris-1871', 'The Paris Commune',
+        'Parisian uprising from March 18 to May 28, 1871.',
         '1871-03-18', '1871-05-28', DATE '1871-03-18', DATE '1871-05-28');

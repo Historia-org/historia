@@ -9,10 +9,10 @@ const DATABASE_URL =
 const pool = new Pool({ connectionString: DATABASE_URL, max: 10 });
 const app = Fastify({ logger: true });
 
-/** Liveness : le process répond. */
+/** Liveness: the process responds. */
 app.get("/health", async () => ({ status: "ok" }));
 
-/** Readiness : la base répond, PostGIS est chargé, le seed est présent. */
+/** Readiness: the database responds, PostGIS is loaded, the seed is present. */
 app.get("/api/v1/meta", async (_req, reply) => {
   try {
     const [pg, events] = await Promise.all([

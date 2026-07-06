@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 /**
- * Télécharge le fond de carte neutre (Natural Earth, domaine public)
- * vers apps/web/public/data/. À lancer une fois : `pnpm setup:data`
+ * Downloads the neutral basemap (Natural Earth, public domain)
+ * into apps/web/public/data/. Run once: `pnpm setup:data`
  *
- * Couverture des îles (volet colonisation) :
- *   - ne_50m_land : terres + îles moyennes (Antilles, Nouvelle-Calédonie, Tahiti...)
- *   - ne_10m_minor_islands : petites îles et atolls (Wallis, Tuamotu, Grenadines...)
+ * Island coverage (colonization angle):
+ *   - ne_50m_land: land + medium islands (Antilles, New Caledonia, Tahiti...)
+ *   - ne_10m_minor_islands: minor islands and atolls (Wallis, Tuamotu, Grenadines...)
  *
- * Option --hd : remplace le 50m par ne_10m_land (~25 Mo, chargement plus lent,
- * trait de côte le plus fin). En Phase 1, le fond sera servi en tuiles
- * vectorielles depuis PostGIS (généralisation par zoom) et ces fichiers
- * statiques disparaîtront.
+ * --hd option: replaces the 50m layer with ne_10m_land (~25 MB, slower load,
+ * finest coastline). In Phase 1, the basemap will be served as vector tiles
+ * from PostGIS (zoom-based generalization) and these static files will
+ * disappear.
  */
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -38,15 +38,15 @@ const FILES = [
 
 await mkdir(outDir, { recursive: true });
 for (const { url, out } of FILES) {
-  process.stdout.write(`Téléchargement ${out} (${hd ? "10m" : "50m/10m"})... `);
+  process.stdout.write(`Downloading ${out} (${hd ? "10m" : "50m/10m"})... `);
   const res = await fetch(url);
   if (!res.ok) {
-    console.error(`ÉCHEC (${res.status}) — ${url}`);
+    console.error(`FAILED (${res.status}) — ${url}`);
     process.exitCode = 1;
     continue;
   }
   const data = await res.text();
   JSON.parse(data); // validation
   await writeFile(join(outDir, out), data);
-  console.log(`ok (${(data.length / 1024 / 1024).toFixed(1)} Mo)`);
+  console.log(`ok (${(data.length / 1024 / 1024).toFixed(1)} MB)`);
 }

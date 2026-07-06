@@ -3,7 +3,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { neutralStyle } from "./neutralStyle";
 
-/** Vue initiale : Paris (événement pilote : Commune de 1871). */
+/** Initial view: Paris (pilot event: 1871 Commune). */
 const PARIS: [number, number] = [2.3522, 48.8566];
 
 export default function HistoriaMap() {

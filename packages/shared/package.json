@@ -7,7 +7,7 @@
   "types": "src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "echo 'consommé en source par les apps'"
+    "build": "echo 'consumed as source by the apps'"
   },
   "devDependencies": {
     "typescript": "^5.7.2"

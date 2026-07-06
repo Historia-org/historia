@@ -1,42 +1,42 @@
 # Historia
 
-Wiki collaboratif de cartographie historique : une carte + une frise chronologique où frontières, fronts et batailles évoluent dans le temps. Voir [ARCHITECTURE.md](./ARCHITECTURE.md) pour la vision complète, le modèle de données et le plan de développement.
+Collaborative historical mapping wiki: a map + a timeline where borders, fronts, and battles evolve over time. See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full vision, data model, and development plan.
 
-- **Code** : Apache-2.0 · **Données** : ODbL 1.0 · **Textes wiki** : CC-BY-SA 4.0
-- Événement pilote : la Commune de Paris (1871)
+- **Code**: Apache-2.0 · **Data**: ODbL 1.0 · **Wiki text**: CC-BY-SA 4.0
+- Pilot event: the Paris Commune (1871)
 
 ## Structure
 
 ```
-apps/web          Front React + MapLibre GL (fond neutre Natural Earth)
-apps/api          API Fastify/TypeScript (auth, changesets, wiki — Phase 2)
-packages/shared   Types partagés (features, états datés EDTF, changesets)
-infra/db          Migrations SQL (schéma bitemporel v1 + seed Commune de Paris)
-infra/martin      Config du serveur de tuiles Martin (function sources — Phase 1)
-scripts/          Outillage (téléchargement du fond de carte)
+apps/web          React front end + MapLibre GL (neutral Natural Earth basemap)
+apps/api          Fastify/TypeScript API (auth, changesets, wiki — Phase 2)
+packages/shared   Shared types (features, dated states EDTF, changesets)
+infra/db          SQL migrations (bitemporal schema v1 + Paris Commune seed)
+infra/martin      Martin tile server config (function sources — Phase 1)
+scripts/          Tooling (basemap download)
 ```
 
-## Prérequis
+## Prerequisites
 
 Node ≥ 22, [pnpm](https://pnpm.io) (`corepack enable`), Docker Desktop.
 
-## Démarrage
+## Getting started
 
 ```bash
 pnpm install
-pnpm setup:data      # fond Natural Earth : terres 1:50m + petites îles 1:10m
-                     # (--hd : trait de côte 1:10m complet, ~25 Mo)
+pnpm setup:data      # Natural Earth basemap: 1:50m land + 1:10m minor islands
+                     # (--hd: full 1:10m coastline, ~25 MB)
 pnpm db:up           # PostGIS :5432 + Martin :3000 (docker compose)
 pnpm dev             # web http://localhost:5173 + api http://localhost:3001
 ```
 
-Vérifications :
+Checks:
 
-- http://localhost:5173 — carte neutre centrée sur Paris
-- http://localhost:3001/api/v1/meta — version PostGIS + événement seed `commune-de-paris-1871`
-- http://localhost:3000/catalog — catalogue Martin (vide en Phase 0, function sources en Phase 1)
+- http://localhost:5173 — neutral map centered on Paris
+- http://localhost:3001/api/v1/meta — PostGIS version + seed event `commune-de-paris-1871`
+- http://localhost:3000/catalog — Martin catalog (empty in Phase 0, function sources in Phase 1)
 
-Pour réinitialiser la base (rejoue les migrations au prochain `db:up`) :
+To reset the database (migrations replay on the next `db:up`):
 
 ```bash
 docker compose down -v
@@ -44,4 +44,4 @@ docker compose down -v
 
 ## Roadmap
 
-Phase 0 ✅ fondations · Phase 1 tuiles temporelles + frise · Phase 2 portail collaboratif + HistoriaText · Phase 3 wiki complet · Phase 4 échelle/imports OHM · Phase 5 interpolation "documentaire". Détail dans [ARCHITECTURE.md](./ARCHITECTURE.md#6-plan-de-développement).
+Phase 0 ✅ foundations · Phase 1 temporal tiles + timeline · Phase 2 collaborative portal + HistoriaText · Phase 3 full wiki · Phase 4 scale/OHM imports · Phase 5 "documentary" interpolation. Details in [ARCHITECTURE.md](./ARCHITECTURE.md#6-development-plan).

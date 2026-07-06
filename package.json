@@ -2,7 +2,7 @@
   "name": "historia",
   "version": "0.1.0",
   "private": true,
-  "description": "Historia — wiki collaboratif de cartographie historique",
+  "description": "Historia — collaborative historical mapping wiki",
   "license": "Apache-2.0",
   "packageManager": "pnpm@9.15.0",
   "engines": {

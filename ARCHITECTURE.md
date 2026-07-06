@@ -1,234 +1,235 @@
-# Historia — Architecture & plan de développement
+# Historia — Architecture & development plan
 
-> Wikipedia de la cartographie historique : une carte web où frontières, positions et événements évoluent le long d'une frise chronologique, alimentée par un portail collaboratif.
-> Cas pilote : **la Commune de Paris (1871)** — échelle urbaine, granularité au jour, sources abondantes.
+> Wikipedia of historical mapping: a web map where borders, positions, and events evolve along a timeline, fed by a collaborative portal.
+> Pilot case: **the Paris Commune (1871)** — urban scale, day-level granularity, abundant sources.
 
 ---
 
-## 1. Avis sur le projet
+## 1. Assessment of the project
 
-Le besoin est réel et la niche n'est pas saturée. Les projets existants à connaître :
+The need is real and the niche is not saturated. Existing projects worth knowing:
 
-| Projet | Ce qu'il fait | Limite |
+| Project | What it does | Limitation |
 |---|---|---|
-| [OpenHistoricalMap](https://wiki.openstreetmap.org/wiki/OpenHistoricalMap) (OHM) | Fork complet de la stack OSM avec dimension temporelle (`start_date`/`end_date`, time slider) | Orienté "base de données de features", pas de narration événementielle (pas de page "Guerre de 100 ans" avec frise dédiée) |
-| Chronas | Carte mondiale + timeline, liée à Wikipedia | Granularité à l'année, projet peu maintenu |
-| GeaCron | Frontières mondiales par année | Propriétaire, fermé, pas collaboratif |
+| [OpenHistoricalMap](https://wiki.openstreetmap.org/wiki/OpenHistoricalMap) (OHM) | Full fork of the OSM stack with a temporal dimension (`start_date`/`end_date`, time slider) | Oriented toward a "feature database," no event narrative (no "Hundred Years' War" page with a dedicated timeline) |
+| Chronas | World map + timeline, linked to Wikipedia | Year-level granularity, poorly maintained project |
+| GeaCron | World borders by year | Proprietary, closed, not collaborative |
 
-**Le différenciateur d'Historia** : l'entrée par *événement historique* (une guerre, une révolution) avec une frise fine (jour par jour quand les sources le permettent), et non l'entrée par "la carte du monde à l'année X". C'est un angle éditorial fort qu'aucun des trois ne couvre.
+**Historia's differentiator**: entry through a *historical event* (a war, a revolution) with a fine-grained timeline (day by day when sources allow), rather than entry through "the map of the world in year X." This is a strong editorial angle that none of the three cover.
 
-**Les deux vrais défis ne sont pas techniques :**
-1. **Le modèle de données temporel** — représenter des géométries valides sur des intervalles de dates, avec incertitude ("vers 1420", "avant mai 1871") et sourçage. C'est le cœur du projet, à figer tôt.
-2. **La gouvernance collaborative** — qui tranche quand deux contributeurs proposent deux tracés de front contradictoires ? Le sourçage obligatoire et un workflow de relecture sont indispensables dès la v1 puisque tu pars collaboratif.
-
----
-
-## 2. Comment OSM est servi (réponse à ta question)
-
-La stack OSM sépare strictement trois rôles, et la performance vient des composants spécialisés — pas du langage de l'application :
-
-1. **Stockage** : PostgreSQL + **PostGIS** (C). Tout le calcul géométrique lourd (intersections, index spatiaux GIST, simplification) se fait dans la base.
-2. **Tuiles** : historiquement Mapnik/mod_tile (raster, C++). Depuis [juillet 2025, osm.org sert des tuiles vectorielles](https://blog.openstreetmap.org/2025/07/22/vector-tiles-are-deployed-on-openstreetmap-org/) (schéma Shortbread) via un backend dédié. L'équivalent moderne auto-hébergeable est [**Martin**](https://github.com/maplibre/martin) (Rust) : il génère des tuiles MVT à la volée depuis PostGIS et encaisse un trafic lourd.
-3. **API d'édition** : le site OSM est en Ruby on Rails ; les endpoints de lecture massive sont délégués à `cgimap` (C++).
-
-**Conclusion pour Historia : oui, TypeScript suffit** pour la couche API/métier, parce que cette couche ne fait ni calcul géométrique ni rendu — elle orchestre. Le pipeline critique est :
-
-```
-PostGIS (C) ──fonctions SQL──▶ Martin (Rust) ──MVT──▶ CDN/cache ──▶ MapLibre GL (client, GPU)
-```
-
-L'API TypeScript ne touche les géométries que pour l'édition (validation, changesets), volume faible. Si un jour un traitement lourd apparaît (simplification topologique batch, imports massifs), on l'écrit en worker séparé (Rust/Python) sans toucher au reste.
+**The two real challenges are not technical:**
+1. **The temporal data model** — representing geometries valid over date ranges, with uncertainty ("around 1420", "before May 1871") and sourcing. This is the core of the project and needs to be locked down early.
+2. **Collaborative governance** — who decides when two contributors propose two conflicting front lines? Mandatory sourcing and a review workflow are essential from v1 onward, since this starts out collaborative.
 
 ---
 
-## 3. Architecture cible
+## 2. How OSM is served (answering your question)
+
+The OSM stack strictly separates three roles, and performance comes from specialized components — not from the application's language:
+
+1. **Storage**: PostgreSQL + **PostGIS** (C). All heavy geometric computation (intersections, GIST spatial indexes, simplification) happens in the database.
+2. **Tiles**: historically Mapnik/mod_tile (raster, C++). Since [July 2025, osm.org serves vector tiles](https://blog.openstreetmap.org/2025/07/22/vector-tiles-are-deployed-on-openstreetmap-org/) (Shortbread schema) via a dedicated backend. The modern self-hostable equivalent is [**Martin**](https://github.com/maplibre/martin) (Rust): it generates MVT tiles on the fly from PostGIS and can absorb heavy traffic.
+3. **Editing API**: the OSM site is Ruby on Rails; bulk read endpoints are delegated to `cgimap` (C++).
+
+**Conclusion for Historia: yes, TypeScript is enough** for the API/business layer, because that layer does neither geometric computation nor rendering — it orchestrates. The critical pipeline is:
 
 ```
-┌─────────────────────────── CLIENT (navigateur) ───────────────────────────┐
+PostGIS (C) ──SQL functions──▶ Martin (Rust) ──MVT──▶ CDN/cache ──▶ MapLibre GL (client, GPU)
+```
+
+The TypeScript API only touches geometries for editing (validation, changesets), which is low volume. If heavy processing ever appears (batch topological simplification, mass imports), it gets written as a separate worker (Rust/Python) without touching the rest.
+
+---
+
+## 3. Target architecture
+
+```
+┌─────────────────────────── CLIENT (browser) ───────────────────────────┐
 │  React + MapLibre GL JS                                                   │
-│  • Carte vectorielle (rendu GPU)      • Frise chronologique (composant)   │
-│  • Éditeur de géométries (Terra Draw) • Pages événement (wiki)            │
+│  • Vector map (GPU rendering)         • Timeline (component)              │
+│  • Geometry editor (Terra Draw)       • Event pages (wiki)                │
 └──────────────┬──────────────────────────────┬──────────────────────────────┘
-               │ tuiles MVT ?date=1871-05-21  │ REST/JSON (auth, édition, wiki)
+               │ MVT tiles ?date=1871-05-21   │ REST/JSON (auth, editing, wiki)
 ┌──────────────▼──────────────┐  ┌────────────▼───────────────────────────────┐
-│  Martin (Rust)              │  │  API Node.js / TypeScript (Fastify)        │
-│  function sources SQL       │  │  • Auth (sessions/OIDC)                    │
-│  paramétrées par date       │  │  • Changesets, validation, modération      │
-│  + cache HTTP (Caddy/CDN)   │  │  • Pages événement, sources, recherche     │
+│  Martin (Rust)               │  │  Node.js / TypeScript API (Fastify)        │
+│  SQL function sources        │  │  • Auth (sessions/OIDC)                    │
+│  parameterized by date        │  │  • Changesets, validation, moderation      │
+│  + HTTP cache (Caddy/CDN)     │  │  • Event pages, sources, search            │
 └──────────────┬──────────────┘  └────────────┬───────────────────────────────┘
                └───────────────┬──────────────┘
                     ┌──────────▼──────────┐
-                    │ PostgreSQL + PostGIS │   (+ fond de carte neutre :
-                    │ modèle bitemporel    │    relief/hydrographie sans
-                    └─────────────────────┘    routes ni villes modernes)
+                    │ PostgreSQL + PostGIS │   (+ neutral basemap:
+                    │ bitemporal model      │    terrain/hydrography without
+                    └─────────────────────┘    modern roads or cities)
 ```
 
-Tout tourne en **Docker Compose sur un VPS** (Hetzner/OVH), reverse proxy Caddy, CDN Cloudflare devant les tuiles. Un seul serveur suffit très longtemps si le cache de tuiles est bien pensé.
+Everything runs on **Docker Compose on a VPS** (Hetzner/OVH), Caddy reverse proxy, Cloudflare CDN in front of the tiles. A single server is enough for a long time if tile caching is well designed.
 
-### Point d'attention : le fond de carte
-Un fond OSM moderne affiche autoroutes et villes actuelles — anachronique sous une carte de 1871. Prévoir un style MapLibre "neutre" (relief, hydrographie, trait de côte — sources : Natural Earth, OpenFreeMap avec style élagué). Le parcellaire historique de Paris viendra ensuite des contributions elles-mêmes.
+### Point of attention: the basemap
+A modern OSM basemap shows highways and present-day cities — anachronistic under an 1871 map. Plan for a "neutral" MapLibre style (terrain, hydrography, coastline — sources: Natural Earth, OpenFreeMap with a trimmed-down style). The historical Paris parcel layout will come later from the contributions themselves.
 
-Exigence îles (volet colonisation, empire français) : le trait 1:110m supprime la plupart des îles d'Océanie et des Caraïbes. Phase 0 : terres 1:50m + couche `ne_10m_minor_islands` (atolls). Phase 1 : charger Natural Earth 1:10m dans PostGIS et servir le fond via Martin avec généralisation par zoom (`ST_Simplify` selon z) — couverture complète sans fichiers lourds côté client.
+Islands requirement (colonization angle, French empire): the 1:110m coastline drops most of the islands in Oceania and the Caribbean. Phase 0: 1:50m land + `ne_10m_minor_islands` layer (atolls). Phase 1: load Natural Earth 1:10m into PostGIS and serve the basemap via Martin with zoom-based generalization (`ST_Simplify` by z) — full coverage without heavy client-side files.
 
 ---
 
-## 4. Modèle de données temporel (le cœur)
+## 4. Temporal data model (the core)
 
-### Principe : bitemporalité
-Deux axes de temps indépendants, à ne jamais confondre :
-- **Temps historique** (`valid_from`, `valid_to`) : quand la chose existait dans le monde réel.
-- **Temps d'édition** (versions, changesets) : qui a modifié quoi, quand, dans la base — nécessaire au wiki (historique, revert, diff).
+### Principle: bitemporality
+Two independent time axes, never to be confused:
+- **Historical time** (`valid_from`, `valid_to`): when the thing existed in the real world.
+- **Edit time** (versions, changesets): who changed what, when, in the database — needed for the wiki (history, revert, diff).
 
-### Schéma conceptuel
+### Conceptual schema
 
 ```sql
--- Une "chose" du monde réel, stable dans le temps (ex: "enceinte de Thiers",
--- "barricade rue de Rivoli", "front des Versaillais")
+-- A real-world "thing," stable over time (e.g. "Thiers wall",
+-- "barricade on Rue de Rivoli", "Versaillais front")
 feature (id, type, slug)
 
--- Son état géométrique sur un intervalle de temps historique.
--- Une feature a N états successifs (≈ "chronology relation" d'OHM).
+-- Its geometric state over a historical time interval.
+-- A feature has N successive states (≈ OHM's "chronology relation").
 feature_state (
   id, feature_id,
-  geom            geometry,        -- point / ligne / polygone
-  valid_from      edtf,            -- dates EDTF : '1871-05-21', '1871-05~' (≈mai), '[1871-05-21..1871-05-23]'
+  geom            geometry,        -- point / line / polygon
+  valid_from      edtf,            -- EDTF dates: '1871-05-21', '1871-05~' (≈May), '[1871-05-21..1871-05-23]'
   valid_to        edtf,
-  valid_from_min  date,            -- bornes dérivées pour l'indexation/requêtage
+  valid_from_min  date,            -- derived bounds for indexing/querying
   valid_from_max  date,
-  properties      jsonb,           -- nom, camp, effectifs...
-  version         int,             -- versionnement d'édition
+  properties      jsonb,           -- name, side, headcount...
+  version         int,             -- edit versioning
   changeset_id    bigint
 )
 
-feature_state_source (feature_state_id, source_id, page, note)  -- sourçage par assertion
-source (id, type, titre, auteur, url, cote_archive)
+feature_state_source (feature_state_id, source_id, page, note)  -- sourcing per assertion
+source (id, type, title, author, url, archive_ref)
 
-event (id, slug, titre, période, description_md)        -- page "Commune de Paris"
-event_feature (event_id, feature_id, rôle)              -- rattachement des features
-changeset (id, user_id, created_at, comment, status)    -- édition + modération
+event (id, slug, title, period, description_md)        -- "Paris Commune" page
+event_feature (event_id, feature_id, role)              -- attaching features
+changeset (id, user_id, created_at, comment, status)    -- editing + moderation
 ```
 
-### Choix structurants
-- **Dates en [EDTF](https://wiki.openstreetmap.org/wiki/OpenHistoricalMap/Dates_And_Times)** (ISO 8601-2) : gère nativement l'incertitude et l'approximation, standard adopté par OHM — on ne réinvente rien, et on garde une compatibilité d'import/export avec OHM (licence ODbL).
-- **Colonnes dérivées `_min`/`_max`** en `date` pour les requêtes : index B-tree, et la requête tuile devient `WHERE valid_from_max <= :d AND (valid_to_min IS NULL OR valid_to_min >= :d)`.
-- **États successifs plutôt que géométries interpolées** : un front qui bouge = une suite de `feature_state`. L'interpolation visuelle entre deux états est un raffinement client, plus tard.
-- **Sourçage au niveau de l'état**, pas de la feature : c'est le tracé daté qui doit être justifié.
+### Structural choices
+- **Dates in [EDTF](https://wiki.openstreetmap.org/wiki/OpenHistoricalMap/Dates_And_Times)** (ISO 8601-2): natively handles uncertainty and approximation, a standard adopted by OHM — nothing reinvented, and it keeps import/export compatibility with OHM (ODbL license).
+- **Derived `_min`/`_max` columns** in `date` for queries: B-tree index, and the tile query becomes `WHERE valid_from_max <= :d AND (valid_to_min IS NULL OR valid_to_min >= :d)`.
+- **Successive states rather than interpolated geometries**: a moving front = a sequence of `feature_state` rows. Visual interpolation between two states is a client-side refinement, added later.
+- **Sourcing at the state level**, not the feature level: it's the dated shape that needs to be justified.
 
-### Le format d'édition : textuel, déterministe, lisible par humain et LLM
+### The editing format: textual, deterministic, human- and LLM-readable
 
-Toute contribution est représentée dans un format texte canonique — appelons-le **HistoriaText** — qui est la *lingua franca* entre l'IHM, l'API et les LLM. L'IHM cartographique (dessin Terra Draw, formulaires) ne fait que générer ce format ; un historien peut le lire, un LLM peut le produire ou le relire, un développeur peut le diff-er.
+Every contribution is represented in a canonical text format — call it **HistoriaText** — which is the *lingua franca* between the UI, the API, and LLMs. The map UI (Terra Draw drawing, forms) only generates this format; a historian can read it, an LLM can produce or review it, a developer can diff it.
 
 ```yaml
-# changeset — barricade de la rue de Rivoli
+# changeset — Rue de Rivoli barricade
 feature: barricade/rue-de-rivoli
 type: barricade
 event: commune-de-paris-1871
 states:
-  - valid: 1871-05-22 / 1871-05-24        # EDTF : "1871-05~" = vers mai 1871
+  - valid: 1871-05-22 / 1871-05-24        # EDTF: "1871-05~" = around May 1871
     geometry: LINESTRING (2.35220 48.85660, 2.35310 48.85640)
     properties:
-      camp: communards
-      hauteur_estimee: incertaine
+      side: communards
+      estimated_height: uncertain
     sources:
       - ref: lissagaray-1876
         page: 312
-        note: "mentionnée comme tenue jusqu'au matin du 24"
+        note: "mentioned as held until the morning of the 24th"
 ```
 
-Règles de déterminisme (indispensables pour les diffs et la reproductibilité) : sérialisation canonique — clés ordonnées, géométries en WKT avec précision fixe (5 décimales ≈ 1 m), dates EDTF normalisées, encodage UTF-8/LF. Deux exports du même état sont identiques octet par octet. Chaque changeset est stocké **et** en base relationnelle (requêtage) **et** sous sa forme HistoriaText (lisibilité, audit, diff type Wikipedia). C'est l'équivalent du XML d'OSM, mais conçu d'emblée pour être écrit à la main ou par un agent.
+Determinism rules (essential for diffs and reproducibility): canonical serialization — ordered keys, geometries in WKT with fixed precision (5 decimals ≈ 1 m), normalized EDTF dates, UTF-8/LF encoding. Two exports of the same state are byte-for-byte identical. Every changeset is stored **both** in the relational database (for querying) **and** in its HistoriaText form (for readability, auditing, Wikipedia-style diffs). It's the equivalent of OSM's XML, but designed from the start to be written by hand or by an agent.
 
-### Historique public à la Wikipedia
+### Public history, Wikipedia-style
 
-Comme sur Wikipedia : **chaque révision est conservée, publique et lisible par tous**, avec structure hiérarchique de consultation — Événement → Sous-événements/Phases → Features → États → Révisions. Chaque page (événement ou feature) expose son onglet "historique" : liste des changesets, diff HistoriaText côte à côte + diff géométrique visuel sur carte, revert en un clic pour les relecteurs. Rien n'est supprimé, tout est attribué.
+As on Wikipedia: **every revision is kept, public, and readable by everyone**, with a hierarchical browsing structure — Event → Sub-events/Phases → Features → States → Revisions. Every page (event or feature) exposes a "history" tab: list of changesets, side-by-side HistoriaText diff + visual geometric diff on the map, one-click revert for reviewers. Nothing is deleted, everything is attributed.
 
-### Servir la donnée efficacement
-Martin expose des *function sources* : une fonction SQL PostGIS qui prend `(z, x, y, date)` et renvoie la tuile MVT filtrée par temps. Côté cache, on ne cache pas par jour arbitraire mais par **dates de rupture** : la liste des `valid_from/valid_to` distincts d'une zone définit des plages où la carte est identique → le client "snappe" la frise sur ces ruptures et le cache HTTP devient très efficace. Pour les zooms faibles, snapshots pré-générés en PMTiles.
+### Serving the data efficiently
+
+Martin exposes *function sources*: a PostGIS SQL function that takes `(z, x, y, date)` and returns the MVT tile filtered by time. On the caching side, we don't cache by arbitrary day but by **breakpoint dates**: the list of distinct `valid_from/valid_to` values in an area defines ranges where the map is identical → the client "snaps" the timeline to these breakpoints and HTTP caching becomes very efficient. For low zoom levels, pre-generated snapshots in PMTiles.
 
 ---
 
-## 5. Briques technologiques
+## 5. Technology building blocks
 
-| Rôle | Choix | Licence | Pourquoi |
+| Role | Choice | License | Why |
 |---|---|---|---|
-| Base de données | PostgreSQL 16 + PostGIS | PostgreSQL (permissive) / **GPL-2.0**¹ | Standard absolu du géospatial, index spatiaux + temporels |
-| Serveur de tuiles | Martin (Rust) | MIT / Apache-2.0 | MVT à la volée depuis PostGIS, function sources paramétrées, très rapide |
-| API métier | Node.js + TypeScript, Fastify | MIT | Maintenable, typé, suffisant (cf. §2) ; SQL direct via Kysely (MIT) |
-| Front | React + MapLibre GL JS | MIT / BSD-3 | Rendu vectoriel GPU, écosystème riche |
-| Édition de géométries | Terra Draw (plugin MapLibre) | MIT | Dessin point/ligne/polygone dans le navigateur |
-| Frise chronologique | Composant custom (D3 ou canvas) | ISC (D3) | C'est l'UX signature du projet, ne pas la sous-traiter à une lib générique |
-| Dates historiques | EDTF (lib `edtf.js` + parsing SQL) | MIT | Incertitude/approximation, compat OHM |
-| Interpolation (v2+) | flubber / turf.js côté client | MIT | Morphing de géométries entre deux états datés (cf. Phase 5) |
-| Auth | Auth.js ou Lucia (e-mail + OAuth) | ISC / MIT | Simple, auto-hébergé |
-| Déploiement | Docker Compose + Caddy + Cloudflare | Apache-2.0 | VPS unique, TLS auto, cache tuiles au CDN |
-| Monorepo | pnpm workspaces (`apps/web`, `apps/api`, `packages/shared`) | MIT | Types partagés client/serveur |
+| Database | PostgreSQL 16 + PostGIS | PostgreSQL (permissive) / **GPL-2.0**¹ | Absolute standard for geospatial, spatial + temporal indexes |
+| Tile server | Martin (Rust) | MIT / Apache-2.0 | On-the-fly MVT from PostGIS, parameterized function sources, very fast |
+| Business API | Node.js + TypeScript, Fastify | MIT | Maintainable, typed, sufficient (see §2); direct SQL via Kysely (MIT) |
+| Front end | React + MapLibre GL JS | MIT / BSD-3 | GPU vector rendering, rich ecosystem |
+| Geometry editing | Terra Draw (MapLibre plugin) | MIT | Point/line/polygon drawing in the browser |
+| Timeline | Custom component (D3 or canvas) | ISC (D3) | This is the project's signature UX, not to be outsourced to a generic library |
+| Historical dates | EDTF (`edtf.js` lib + SQL parsing) | MIT | Uncertainty/approximation, OHM compatibility |
+| Interpolation (v2+) | flubber / turf.js on the client | MIT | Morphing geometries between two dated states (see Phase 5) |
+| Auth | Auth.js or Lucia (email + OAuth) | ISC / MIT | Simple, self-hosted |
+| Deployment | Docker Compose + Caddy + Cloudflare | Apache-2.0 | Single VPS, automatic TLS, CDN tile caching |
+| Monorepo | pnpm workspaces (`apps/web`, `apps/api`, `packages/shared`) | MIT | Shared client/server types |
 
-¹ PostGIS est GPL-2.0, mais utilisé comme **service séparé via SQL** : la GPL ne s'applique qu'aux œuvres dérivées (fork, linkage), pas à un client qui envoie des requêtes. Ton code n'est donc pas contaminé. Il n'existe de toute façon aucune alternative permissive sérieuse à PostGIS.
-
----
-
-## 6. Plan de développement
-
-### Phase 0 — Fondations (≈1-2 semaines)
-- Monorepo pnpm, Docker Compose (PostGIS + Martin + API + front), CI basique.
-- Schéma SQL v1 (§4) + migrations. Style de fond de carte neutre.
-- **Livrable : une carte MapLibre vide sur fond neutre, servie localement.**
-
-### Phase 1 — Cœur carto en lecture (≈3-5 semaines)
-- Fonctions SQL tuiles temporelles + config Martin ; seed manuel de quelques barricades/fronts de la Commune.
-- Composant frise : plage 18 mars → 28 mai 1871, curseur au jour, snapping sur les dates de rupture.
-- Page événement minimale (titre, description, carte + frise).
-- **Livrable : on scrolle la frise, les géométries apparaissent/disparaissent. La démo qui valide tout le concept.**
-
-### Phase 2 — Portail collaboratif (≈5-8 semaines)
-- Spécification et parseur **HistoriaText** (sérialisation canonique, round-trip base ⇄ texte garanti par tests).
-- Auth, profils. Éditeur : dessiner/modifier une géométrie, saisir dates EDTF (avec UI d'incertitude), **source obligatoire**. L'IHM génère du HistoriaText, visible dans un onglet "source" avant soumission.
-- Changesets : soumission → relecture → publication. Historique public complet et revert par feature.
-- **Livrable : un tiers peut contribuer une barricade sourcée via l'IHM ; un LLM peut produire le même changeset en texte.**
-
-### Phase 3 — Wiki & consultation riche (≈4-6 semaines)
-- Pages événement complètes (markdown, bibliographie, sous-événements datés reliés à la frise).
-- Diff visuel de géométries entre versions (essentiel pour la modération), rôles (contributeur/relecteur/admin), recherche.
-- **Livrable : le cycle wiki complet — consulter, contribuer, relire, discuter.**
-
-### Phase 4 — Échelle & ouverture
-- CDN + politique de cache par plages, PMTiles pour zooms faibles, monitoring (Grafana).
-- API publique de lecture + export HistoriaText/GeoJSON (pour écoles, musées : widget embarquable `<iframe>`/web component).
-- Deuxième événement pilote à plus grande échelle spatiale (ex. guerre de 100 ans) pour éprouver le modèle sur des frontières nationales.
-- Pipeline d'import/export OHM (ODbL ⇄ ODbL, cf. §8) : amorçage du fond historique depuis OHM avec provenance tracée par changeset.
-
-### Phase 5 — Mode interpolation ("documentaire")
-- Morphing client entre deux `feature_state` successifs (flubber pour polygones, interpolation de vertex pour lignes/fronts) : la frontière *glisse* quand on joue la frise, comme dans un documentaire.
-- Le modèle par ruptures reste la vérité ; l'interpolation est un mode d'affichage optionnel, marqué visuellement comme reconstitution (et non donnée sourcée).
-- Optionnel : points de passage intermédiaires non sourcés (`interpolation_hint`) pour guider le morphing sur les cas complexes.
+¹ PostGIS is GPL-2.0, but used as a **separate service via SQL**: the GPL only applies to derivative works (forking, linking), not to a client that sends queries. Your code is therefore not contaminated. There's no serious permissive alternative to PostGIS anyway.
 
 ---
 
-## 7. Risques & vigilance
+## 6. Development plan
 
-- **Le modèle de données est le point de non-retour** : prototyper la requête temporelle (Phase 1) avant de construire l'édition dessus.
-- **Incertitude historique ≠ absence de données** : l'UI doit distinguer "tracé incertain" (pointillés, halo) de "rien à cette date". Prévu dans le modèle (EDTF), à prévoir dans le style.
-- **Modération à froid** : partir collaboratif sans communauté = peu de spam au début, mais verrouiller le workflow de relecture avant toute ouverture publique.
-- **Ne pas forker la stack OSM** (Rails, osm2pgsql...) : elle est taillée pour une planète entière et te ralentirait. S'inspirer du *modèle* d'OHM (EDTF, chronologies), pas de son code.
+### Phase 0 — Foundations (≈1-2 weeks)
+- pnpm monorepo, Docker Compose (PostGIS + Martin + API + front end), basic CI.
+- SQL schema v1 (§4) + migrations. Neutral basemap style.
+- **Deliverable: an empty MapLibre map on a neutral basemap, served locally.**
 
-## 8. Licences
+### Phase 1 — Read-only map core (≈3-5 weeks)
+- Temporal tile SQL functions + Martin config; manual seed of a few Commune barricades/fronts.
+- Timeline component: March 18 → May 28, 1871 range, day-level cursor, snapping to breakpoint dates.
+- Minimal event page (title, description, map + timeline).
+- **Deliverable: scrolling the timeline makes geometries appear/disappear. The demo that validates the whole concept.**
 
-Objectif : réutilisation libre (écoles, musées, intégration dans leurs pages/écrans) avec pour seule obligation la **citation**, et compatibilité d'import avec l'écosystème OSM/OHM.
+### Phase 2 — Collaborative portal (≈5-8 weeks)
+- **HistoriaText** spec and parser (canonical serialization, database ⇄ text round-trip guaranteed by tests).
+- Auth, profiles. Editor: draw/edit a geometry, enter EDTF dates (with an uncertainty UI), **mandatory source**. The UI generates HistoriaText, visible in a "source" tab before submission.
+- Changesets: submission → review → publication. Full public history and per-feature revert.
+- **Deliverable: a third party can contribute a sourced barricade via the UI; an LLM can produce the same changeset as text.**
 
-| Quoi | Licence | Effet |
+### Phase 3 — Wiki & rich browsing (≈4-6 weeks)
+- Full event pages (markdown, bibliography, dated sub-events linked to the timeline).
+- Visual geometry diff between versions (essential for moderation), roles (contributor/reviewer/admin), search.
+- **Deliverable: the full wiki cycle — browse, contribute, review, discuss.**
+
+### Phase 4 — Scale & openness
+- CDN + range-based cache policy, PMTiles for low zoom levels, monitoring (Grafana).
+- Public read API + HistoriaText/GeoJSON export (for schools, museums: embeddable `<iframe>`/web component widget).
+- Second pilot event at a larger spatial scale (e.g. the Hundred Years' War) to stress-test the model on national borders.
+- OHM import/export pipeline (ODbL ⇄ ODbL, see §8): bootstrapping the historical basemap from OHM with provenance tracked per changeset.
+
+### Phase 5 — Interpolation mode ("documentary")
+- Client-side morphing between two successive `feature_state` rows (flubber for polygons, vertex interpolation for lines/fronts): the border *slides* as you play the timeline, like in a documentary.
+- The breakpoint-based model remains the source of truth; interpolation is an optional display mode, visually marked as a reconstruction (not sourced data).
+- Optional: unsourced intermediate waypoints (`interpolation_hint`) to guide morphing in complex cases.
+
+---
+
+## 7. Risks & things to watch
+
+- **The data model is the point of no return**: prototype the temporal query (Phase 1) before building editing on top of it.
+- **Historical uncertainty ≠ absence of data**: the UI must distinguish "uncertain shape" (dashed lines, halo) from "nothing at this date." Planned in the model (EDTF), to be planned in the style too.
+- **Cold-start moderation**: starting collaborative without a community means little spam at first, but lock down the review workflow before any public opening.
+- **Don't fork the OSM stack** (Rails, osm2pgsql...): it's built for an entire planet and would slow you down. Draw inspiration from OHM's *model* (EDTF, chronologies), not its code.
+
+## 8. Licenses
+
+Goal: free reuse (schools, museums, embedding in their pages/screens) with **attribution** as the only obligation, and import compatibility with the OSM/OHM ecosystem.
+
+| What | License | Effect |
 |---|---|---|
-| Code Historia | **Apache-2.0** | Permissive + clause brevets ; attribution requise ; un musée peut intégrer/modifier sans rien reverser. Indépendante de la licence des données |
-| Données (géométries, dates, sources) | **ODbL 1.0** | Afficher une carte (site, écran, image = "produced work") : **citation seule**. Republier une base de données dérivée : share-alike ODbL. Compatible imports OSM/OHM |
-| Contenus wiki (textes des pages événement) | **CC-BY-SA 4.0** | Comme Wikipedia ; compatible avec les descriptions OHM |
-| Format HistoriaText (spec) | CC-BY 4.0 ou domaine public | Encourager l'adoption |
+| Historia code | **Apache-2.0** | Permissive + patent clause; attribution required; a museum can embed/modify without giving anything back. Independent of the data license |
+| Data (geometries, dates, sources) | **ODbL 1.0** | Displaying a map (site, screen, image = "produced work"): **attribution only**. Republishing a derived database: ODbL share-alike. Compatible with OSM/OHM imports |
+| Wiki content (event page text) | **CC-BY-SA 4.0** | Like Wikipedia; compatible with OHM descriptions |
+| HistoriaText format (spec) | CC-BY 4.0 or public domain | Encourage adoption |
 
-Conditions d'entrée : chaque contributeur accepte à l'inscription de publier sous ces licences (équivalent des CGU Wikipedia/OSM).
+Entry conditions: every contributor agrees at sign-up to publish under these licenses (equivalent to Wikipedia/OSM terms of use).
 
-Pourquoi ODbL et pas CC-BY : le cas d'usage cible (écoles/musées qui *affichent* la carte) est traité identiquement par les deux — citation seule. La différence ne joue que pour qui republie les *données brutes* remixées (share-alike). En échange, ODbL ouvre l'**import depuis OSM et OpenHistoricalMap** (projet activement maintenu, soutenu par OSM US / Development Seed), ce qui est stratégique pour amorcer le fond historique. Note : PostGIS (GPL-2.0) est utilisé comme service séparé via SQL — aucune contamination du code (la GPL ne s'applique qu'aux œuvres dérivées).
+Why ODbL and not CC-BY: the target use case (schools/museums *displaying* the map) is handled identically by both — attribution only. The difference only matters for whoever republishes the remixed *raw data* (share-alike). In exchange, ODbL opens up **importing from OSM and OpenHistoricalMap** (an actively maintained project, backed by OSM US / Development Seed), which is strategic for bootstrapping the historical basemap. Note: PostGIS (GPL-2.0) is used as a separate service via SQL — no contamination of the code (GPL only applies to derivative works).
 
-**Politique d'import** : uniquement depuis des projets maintenus et compatibles ODbL (OSM, OHM), avec traçabilité de la provenance par changeset (`source=ohm`, id d'origine) pour pouvoir synchroniser ou purger une source ultérieurement.
+**Import policy**: only from maintained, ODbL-compatible projects (OSM, OHM), with provenance tracked per changeset (`source=ohm`, original id) so a source can be synced or purged later.
 
-## 9. Décisions ouvertes
+## 9. Open decisions
 
-1. Discussion par feature (talk pages) : Phase 3 ou intégration d'un forum externe ?
-2. Multilinguisme des pages événement : d'emblée (schéma i18n) ou français d'abord ?
-3. HistoriaText : YAML canonique (lisibilité maximale) ou JSON canonique (parsing plus strict) ? Prototype des deux en Phase 2 avant de figer.
+1. Per-feature discussion (talk pages): Phase 3, or integrate an external forum?
+2. Multilingual event pages: from the start (i18n schema), or English first?
+3. HistoriaText: canonical YAML (maximum readability) or canonical JSON (stricter parsing)? Prototype both in Phase 2 before locking it in.

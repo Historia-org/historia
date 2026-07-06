@@ -1,5 +1,5 @@
 node_modules/
-# Données de fond de carte téléchargées (pnpm setup:data)
+# Downloaded basemap data (pnpm setup:data)
 apps/web/public/data/*.geojson
 dist/
 build/

@@ -1,19 +1,19 @@
 /**
- * @historia/shared — types partagés client/serveur.
- * Miroir TypeScript du schéma SQL (infra/db/migrations) et base du futur
- * format HistoriaText (Phase 2).
+ * @historia/shared — shared client/server types.
+ * TypeScript mirror of the SQL schema (infra/db/migrations) and basis for the
+ * future HistoriaText format (Phase 2).
  */
 
-/** Date EDTF (ISO 8601-2) : "1871-05-22", "1871-05~" (≈mai 1871), "[1871-05-21..1871-05-23]" */
+/** EDTF date (ISO 8601-2): "1871-05-22", "1871-05~" (≈May 1871), "[1871-05-21..1871-05-23]" */
 export type EdtfDate = string;
 
 export type FeatureType =
   | "barricade"
   | "front"
-  | "frontiere"
-  | "batiment"
-  | "bataille"
-  | "unite_militaire"
+  | "border"
+  | "building"
+  | "battle"
+  | "military_unit"
   | string;
 
 export interface HistoriaFeature {
@@ -22,7 +22,7 @@ export interface HistoriaFeature {
   type: FeatureType;
 }
 
-/** État daté d'une feature — immutable ; le sourçage porte sur l'état. */
+/** Dated state of a feature — immutable; sourcing applies to the state. */
 export interface FeatureState {
   id: number;
   featureId: number;
@@ -58,7 +58,7 @@ export interface SourceRef {
   note?: string;
 }
 
-// Namespace GeoJSON minimal pour ne pas dépendre de @types/geojson en Phase 0
+// Minimal GeoJSON namespace to avoid depending on @types/geojson in Phase 0
 declare global {
   namespace GeoJSON {
     interface Geometry {

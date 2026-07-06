@@ -1,16 +1,16 @@
 import type { StyleSpecification } from "maplibre-gl";
 
 /**
- * Fond de carte NEUTRE — pas d'éléments modernes (routes, villes actuelles),
- * pour ne pas créer d'anachronisme sous les couches historiques.
+ * NEUTRAL basemap — no modern elements (roads, present-day cities),
+ * so as not to create anachronisms under the historical layers.
  *
- * Données (domaine public, Natural Earth, servies en local) :
- *   - ne_land : terres 1:50m (ou 1:10m avec `pnpm setup:data --hd`)
- *   - ne_minor_islands : petites îles/atolls 1:10m — indispensable pour
- *     l'histoire coloniale (Océanie, Caraïbes)
+ * Data (public domain, Natural Earth, served locally):
+ *   - ne_land: 1:50m land (or 1:10m with `pnpm setup:data --hd`)
+ *   - ne_minor_islands: 1:10m minor islands/atolls — essential for
+ *     colonial history (Oceania, Caribbean)
  *
- * Phase 1 : fond servi en tuiles vectorielles depuis PostGIS avec
- * généralisation par zoom (trait 1:10m complet sans gros fichiers).
+ * Phase 1: basemap served as vector tiles from PostGIS with
+ * zoom-based generalization (full 1:10m coastline without heavy files).
  */
 export const neutralStyle: StyleSpecification = {
   version: 8,
@@ -19,7 +19,7 @@ export const neutralStyle: StyleSpecification = {
     land: {
       type: "geojson",
       data: "/data/ne_land.geojson",
-      attribution: "Fond : Natural Earth (domaine public)",
+      attribution: "Basemap: Natural Earth (public domain)",
     },
     minorIslands: {
       type: "geojson",
@@ -54,7 +54,7 @@ export const neutralStyle: StyleSpecification = {
       paint: { "fill-color": "#f1ead9" },
     },
     {
-      // Trait légèrement plus marqué : garde les atolls visibles aux zooms moyens
+      // Slightly heavier line: keeps atolls visible at medium zoom levels
       id: "minor-islands-outline",
       type: "line",
       source: "minorIslands",

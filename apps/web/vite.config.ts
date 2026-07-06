@@ -6,9 +6,9 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // API métier
+      // Business API
       "/api": "http://localhost:3001",
-      // Tuiles Martin (Phase 1)
+      // Martin tiles (Phase 1)
       "/tiles": {
         target: "http://localhost:3000",
         rewrite: (path) => path.replace(/^\/tiles/, ""),
