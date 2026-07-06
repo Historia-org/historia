@@ -1,0 +1,15 @@
+{
+  "name": "@historia/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "echo 'consommé en source par les apps'"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}

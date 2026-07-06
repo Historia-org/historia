@@ -1,0 +1,13 @@
+# Config Martin — Phase 0 : connexion seule.
+# Phase 1 : function sources temporelles (tuiles MVT filtrées par date).
+listen_addresses: "0.0.0.0:3000"
+
+postgres:
+  # DATABASE_URL est injectée par docker-compose
+  auto_publish:
+    tables: false
+    functions:
+      # Toute fonction SQL du schéma "tiles" devient une source de tuiles.
+      # Convention Phase 1 : tiles.features(z, x, y, query_params) avec paramètre "date".
+      from_schemas:
+        - tiles

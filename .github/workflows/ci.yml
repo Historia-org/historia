@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build
+
+      - name: Validate SQL migrations (syntax)
+        run: |
+          docker run --rm -v "$PWD/infra/db/migrations:/migrations:ro" \
+            -e POSTGRES_PASSWORD=ci postgis/postgis:16-3.4 \
+            bash -c 'docker-entrypoint.sh postgres & \
+              until pg_isready -U postgres; do sleep 1; done; \
+              for f in /migrations/*.sql; do \
+                echo "== $f"; psql -U postgres -v ON_ERROR_STOP=1 -f "$f" || exit 1; \
+              done'

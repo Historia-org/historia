@@ -1,0 +1,42 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.app-header {
+  padding: 0.5rem 1rem;
+  background: #2b2620;
+  color: #f4efe6;
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+}
+
+.app-header h1 {
+  font-size: 1.2rem;
+  font-weight: normal;
+  letter-spacing: 0.15em;
+}
+
+.app-header span {
+  font-size: 0.8rem;
+  color: #b8ad9c;
+}
+
+.map-container {
+  flex: 1;
+}

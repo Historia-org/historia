@@ -1,0 +1,34 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-historia}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-historia_dev_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-historia}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Exécutés une seule fois, à la création du volume, dans l'ordre alphabétique
+      - ./infra/db/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-historia} -d ${POSTGRES_DB:-historia}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  martin:
+    image: ghcr.io/maplibre/martin:latest
+    command: ["--config", "/config/martin.yaml"]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-historia}:${POSTGRES_PASSWORD:-historia_dev_change_me}@db:5432/${POSTGRES_DB:-historia}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./infra/martin/martin.yaml:/config/martin.yaml:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
