@@ -24,7 +24,8 @@ Node ≥ 22, [pnpm](https://pnpm.io) (`corepack enable`), Docker Desktop.
 
 ```bash
 pnpm install
-pnpm setup:data      # télécharge le fond Natural Earth (une seule fois)
+pnpm setup:data      # fond Natural Earth : terres 1:50m + petites îles 1:10m
+                     # (--hd : trait de côte 1:10m complet, ~25 Mo)
 pnpm db:up           # PostGIS :5432 + Martin :3000 (docker compose)
 pnpm dev             # web http://localhost:5173 + api http://localhost:3001
 ```

@@ -68,6 +68,8 @@ Tout tourne en **Docker Compose sur un VPS** (Hetzner/OVH), reverse proxy Caddy,
 ### Point d'attention : le fond de carte
 Un fond OSM moderne affiche autoroutes et villes actuelles — anachronique sous une carte de 1871. Prévoir un style MapLibre "neutre" (relief, hydrographie, trait de côte — sources : Natural Earth, OpenFreeMap avec style élagué). Le parcellaire historique de Paris viendra ensuite des contributions elles-mêmes.
 
+Exigence îles (volet colonisation, empire français) : le trait 1:110m supprime la plupart des îles d'Océanie et des Caraïbes. Phase 0 : terres 1:50m + couche `ne_10m_minor_islands` (atolls). Phase 1 : charger Natural Earth 1:10m dans PostGIS et servir le fond via Martin avec généralisation par zoom (`ST_Simplify` selon z) — couverture complète sans fichiers lourds côté client.
+
 ---
 
 ## 4. Modèle de données temporel (le cœur)
