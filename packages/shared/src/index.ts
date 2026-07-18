@@ -45,6 +45,20 @@ export interface HistoriaEvent {
   parentId: number | null;
 }
 
+/** Payload of GET /api/v1/events/:slug (dates are ISO YYYY-MM-DD). */
+export interface EventDetail {
+  slug: string;
+  title: string;
+  description_md: string | null;
+  period_start_edtf: EdtfDate | null;
+  period_end_edtf: EdtfDate | null;
+  period_start: string | null;
+  period_end: string | null;
+  feature_count: number;
+  /** Dates where the visible map changes — the timeline snaps tiles to these. */
+  breakpoints: string[];
+}
+
 export type ChangesetStatus =
   | "draft"
   | "submitted"
