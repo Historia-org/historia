@@ -26,15 +26,22 @@ Node ≥ 22, [pnpm](https://pnpm.io) (`corepack enable`), Docker Desktop.
 pnpm install
 pnpm setup:data      # Natural Earth basemap: 1:50m land + 1:10m minor islands
                      # (--hd: full 1:10m coastline, ~25 MB)
-pnpm db:up           # PostGIS :5432 + Martin :3000 (docker compose)
+pnpm db:up           # PostGIS :5433 + Martin :3000 (docker compose)
 pnpm dev             # web http://localhost:5173 + api http://localhost:3001
 ```
 
+PostGIS is published on host port **5433** (5432 is often taken by a native
+PostgreSQL install); override with `POSTGRES_HOST_PORT` in `.env`.
+
 Checks:
 
-- http://localhost:5173 — neutral map centered on Paris
-- http://localhost:3001/api/v1/meta — PostGIS version + seed event `commune-de-paris-1871`
-- http://localhost:3000/catalog — Martin catalog (empty in Phase 0, function sources in Phase 1)
+- http://localhost:5173 — the Paris Commune demo: drag the timeline and watch
+  barricades and front lines appear/disappear at their sourced dates
+  (Shift+←/→ jumps between breakpoints, Space plays)
+- http://localhost:3001/api/v1/events/commune-de-paris-1871 — event detail +
+  timeline breakpoints
+- http://localhost:3000/catalog — Martin catalog with the `features` function
+  source; tiles at `/features/{z}/{x}/{y}?date=1871-05-23`
 
 To reset the database (migrations replay on the next `db:up`):
 
@@ -44,4 +51,4 @@ docker compose down -v
 
 ## Roadmap
 
-Phase 0 ✅ foundations · Phase 1 temporal tiles + timeline · Phase 2 collaborative portal + HistoriaText · Phase 3 full wiki · Phase 4 scale/OHM imports · Phase 5 "documentary" interpolation. Details in [ARCHITECTURE.md](./ARCHITECTURE.md#6-development-plan).
+Phase 0 ✅ foundations · Phase 1 ✅ temporal tiles + timeline · Phase 2 collaborative portal + HistoriaText · Phase 3 full wiki · Phase 4 scale/OHM imports · Phase 5 "documentary" interpolation. Details in [ARCHITECTURE.md](./ARCHITECTURE.md#6-development-plan).
