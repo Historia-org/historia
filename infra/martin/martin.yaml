@@ -3,7 +3,9 @@
 listen_addresses: "0.0.0.0:3000"
 
 postgres:
-  # DATABASE_URL is injected by docker-compose
+  # Injected by docker-compose; Martin expands env vars in the config file
+  # (the DATABASE_URL env var alone is ignored when a config file is loaded)
+  connection_string: ${DATABASE_URL}
   auto_publish:
     tables: false
     functions:
