@@ -8,3 +8,5 @@ build/
 .DS_Store
 .pgdata/
 coverage/
+.claude/
+*.tsbuildinfo
