@@ -6,7 +6,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-historia_dev_change_me}
       POSTGRES_DB: ${POSTGRES_DB:-historia}
     ports:
-      - "5432:5432"
+      # Host port 5433: avoids clashing with a natively installed PostgreSQL
+      # (Martin reaches the container directly on db:5432)
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       # Run once, when the volume is created, in alphabetical order
